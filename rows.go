@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"io"
 	"strings"
+	"time"
 )
 
 // Rows interface allows to construct rows
@@ -20,6 +21,7 @@ type rows struct {
 	cols []string
 	rows [][]driver.Value
 	pos  int
+	time bool
 }
 
 func (r *rows) Columns() []string {
@@ -42,7 +44,16 @@ func (r *rows) Next(dest []driver.Value) error {
 	}
 
 	for i, col := range r.rows[r.pos-1] {
-		dest[i] = col
+		if r.time {
+			t, err := parseTime(string(col.([]byte)))
+			if err == nil {
+				dest[i] = t
+			} else {
+				dest[i] = col
+			}
+		} else {
+			dest[i] = col
+		}
 	}
 
 	return nil
@@ -52,7 +63,11 @@ func (r *rows) Next(dest []driver.Value) error {
 // sql driver.Value or from the CSV string and
 // to be used as sql driver.Rows
 func NewRows(columns []string) Rows {
-	return &rows{cols: columns}
+	return &rows{cols: columns, time: false}
+}
+
+func NewTimeRows(columns []string) Rows {
+	return &rows{cols: columns, time: true}
 }
 
 // AddRow adds a row which is built from arguments
@@ -117,4 +132,12 @@ func RowsFromCSVString(columns []string, s string) driver.Rows {
 		rs.rows = append(rs.rows, row)
 	}
 	return rs
+}
+
+func parseTime(t string) (time.Time, error) {
+	pt, err := time.Parse("2006-01-02 15:04:05", t)
+	if err != nil {
+		return time.Now(), err
+	}
+	return pt, nil
 }
